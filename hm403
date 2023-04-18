@@ -1,0 +1,137 @@
+# coding:utf-8
+"""
+@File    :   hmwk403.py
+@Contact :   xwz3568@163.com
+
+@Modify Time          @Author    @Version    @Description
+------------          --------   --------    -----------
+2023/4/3 0003 17:06  FuGui       2.3         图书|电影信息:post、pymysql、模块、类
+"""
+from pprint import pprint  # 自动格式化输出
+import requests
+import json
+import ownsql  # 导入自写库
+
+
+class Spider:
+    def __init__(self, url):
+        self.url = url
+
+    # @staticmethod  # 后续优化可做多页
+    def get_html(self):
+        """
+        post接口传参获取动态网页信息
+        :param self:网页地址
+        :return: http响应对象
+        """
+        try:
+            # page处修改可实现换页
+            data = {"sort": "hot", "page": 2, "kind": 100,
+                    "query": "\n    query getFilterWorksList($works_ids: [ID!]){\n      worksList(worksIds: "
+                             "$works_ids) {\n        \n    \n    title\n    cover(useSmall: false)\n    url\n    "
+                             "isBundle\n    coverLabel(preferVip: true)\n  \n    \n  url\n  title\n\n    \n  author {"
+                             "\n    name\n    url\n  }\n  origAuthor {\n    name\n    url\n  }\n  translator {\n    "
+                             "name\n    url\n  }\n\n    \n  abstract\n  authorHighlight\n  editorHighlight\n\n    \n  "
+                             "  isOrigin\n    kinds {\n      \n    name @skip(if: true)\n    shortName @include(if: "
+                             "true)\n    id\n  \n    }\n    ... on WorksBase @include(if: true) {\n      wordCount\n  "
+                             "    wordCountUnit\n    }\n    ... on WorksBase @include(if: false) {\n      "
+                             "inLibraryCount\n    }\n    ... on WorksBase @include(if: false) {\n      \n    "
+                             "isEssay\n    \n    ... on EssayWorks {\n      favorCount\n    }\n  \n    \n    \n    "
+                             "averageRating\n    ratingCount\n    url\n    isColumn\n    isFinished\n  \n  \n  \n    "
+                             "}\n    ... on EbookWorks @include(if: false) {\n      \n    ... on EbookWorks {\n      "
+                             "book {\n        url\n        averageRating\n        ratingCount\n      }\n    }\n  \n   "
+                             " }\n    ... on WorksBase @include(if: false) {\n      isColumn\n      isEssay\n      "
+                             "onSaleTime\n      ... on ColumnWorks {\n        updateTime\n      }\n    }\n    ... on "
+                             "WorksBase @include(if: true) {\n      isColumn\n      ... on ColumnWorks {\n        "
+                             "isFinished\n      }\n    }\n    ... on EssayWorks {\n      essayActivityData {\n        "
+                             "\n    title\n    uri\n    tag {\n      name\n      color\n      background\n      "
+                             "icon2x\n      icon3x\n      iconSize {\n        height\n      }\n      iconPosition {\n "
+                             "       x y\n      }\n    }\n  \n      }\n    }\n    highlightTags {\n      name\n    "
+                             "}\n    ... on WorksBase @include(if: false) {\n      fanfiction {\n        tags {\n     "
+                             "     id\n          name\n          url\n        }\n      }\n    }\n  \n    \n  ... on "
+                             "WorksBase {\n    copyrightInfo {\n      newlyAdapted\n      newlyPublished\n      "
+                             "adaptedName\n      publishedName\n    }\n  }\n\n    isInLibrary\n    ... on WorksBase "
+                             "@include(if: false) {\n      \n    fixedPrice\n    salesPrice\n    isRebate\n  \n    "
+                             "}\n    ... on EbookWorks {\n      \n    fixedPrice\n    salesPrice\n    isRebate\n  \n  "
+                             "  }\n    ... on WorksBase @include(if: true) {\n      ... on EbookWorks {\n        id\n "
+                             "       isPurchased\n        isInWishlist\n      }\n    }\n    ... on WorksBase "
+                             "@include(if: false) {\n      fanfiction {\n        fandoms {\n          title\n         "
+                             " url\n        }\n      }\n    }\n    ... on WorksBase @include(if: false) {\n      "
+                             "fanfiction {\n        kudoCount\n      }\n    }\n  \n        id\n        isOrigin\n     "
+                             " }\n    }\n  ",
+                    "variables": {}}
+            header = {
+                "Content-Type": "application/json",
+                "Host": "read.douban.com",
+                "Referer": "https://read.douban.com/category/100?sort=hot&sale=&page=1",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36"
+                              "(KHTML, like Gecko)Chrome/86.0.4240.198 Safari/537.36"
+            }
+            print("正在请求……")
+            response = requests.post(self.url, json=data, headers=header)
+            return response
+        except Exception as e:
+            print(e)
+
+    def get_data(self):
+        """
+        获取书名、作者、描述、价格
+        :return:4个列表格式的信息
+        """
+        infolist = []
+        r = json.loads(self.get_html().text)
+        # print(r)
+        print("正在获取数据……")
+        for i in range(20):
+            try:
+                infolist.append([  # 元组添加新元素末尾逗号
+                    r["list"][i]["title"],
+                    r["list"][i]["author"][0]["name"],
+                    r["list"][i]["abstract"].replace('\r', '').replace('\n', '')
+                ])
+            except:
+                infolist.append([
+                    r["list"][i]["title"],
+                    r["list"][i]["origAuthor"][0]["name"],  # 外国作者
+                    r["list"][i]["abstract"].replace('\r', '').replace('\n', '')
+                ])
+                # pprint(infotuple)
+                # break
+        return infolist
+
+    def save_data(self):
+        dbinfo = {
+            'host': '127.0.0.1',
+            'user': 'pythonSQL',
+            'password': '123456wz',
+            'database': 'hmwk403',  # 需要先创建.否则找不到数据库
+            'charset': 'utf8mb4'
+        }
+        sql = "insert into bookinfo(bookname,author,describ) values(%s,%s,%s)"
+        val = self.get_data()
+        for i in range(20):
+            ownsql.save_mysql(sql, [val[i]], **dbinfo)
+
+
+if __name__ == '__main__':
+    s = Spider('https://read.douban.com/j/kind/')
+    # print(s.get_data()[16])
+    s.save_data()
+
+'''
+    错误及解决
+    # 请求负载和表单数据?
+    # post请求：https: // blog.csdn.net / weixin_49981930 / article / details / 122655012
+    # 【RuntimeError: 'cryptography' package is required for sha256_password or caching_sha2_password auth methods】
+        -【pip install cryptography】
+    # 【SyntaxError: Non-UTF-8 code starting with '\xe5' in file】
+        -【https://blog.csdn.net/weixin_43896318/article/details/105454254】
+    # mysql插入数据出现\xF0\x9F\x92\x94‘ for column ‘name‘ at row 1的问题
+        -【因为有特殊表情】
+    # 【not all arguments converted during string formatting】-未完全格式化
+        -【https://blog.csdn.net/alwaysbefine/article/details/105614093】
+        -【https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html】
+        -----【https://blog.csdn.net/github_33809414/article/details/89844574】
+        =====将表名和要插入的数据封装成字典，再进行批量插入
+'''
+
